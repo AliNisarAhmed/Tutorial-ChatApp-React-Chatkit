@@ -10,10 +10,17 @@ import { tokenUrl, instanceLocator } from './chatkitConfig';
 
 class App extends Component {
 
+  state = {
+    roomId: null,
+    messages: [],
+    joinableRooms: [],
+    joinedRooms: []
+  };
+
   componentDidMount() {
     const chatManager = new Chatkit.ChatManager({
       instanceLocator,
-      userId: "alinisar87",
+      userId: "SamAli",
       tokenProvider: new Chatkit.TokenProvider({
         url: tokenUrl
       })
@@ -22,23 +29,61 @@ class App extends Component {
     chatManager
       .connect()
       .then(currentUser => {
-        currentUser.subscribeToRoom({
-          roomId: 14656272,
-          hooks: {
-            onNewMessage: message => {
-              console.log('message.text :', message.text);
-            }
-          }
-        })
+        this.currentUser = currentUser;
+        this.getRooms();
       })
+      .catch(err => console.log('error on connecting: ', err));
+  }
+
+  getRooms = () => {
+    this.currentUser.getJoinableRooms()
+      .then(joinableRooms => {
+        this.setState(() => ({
+          joinableRooms,
+          joinedRooms: this.currentUser.rooms
+        }));
+      })
+      .catch(err => console.log('error on joinableRomms: ', err));
+  }
+
+  subscribeToRoom = (roomId) => {
+    this.setState(() => ({ messages: [] }));
+    this.currentUser.subscribeToRoom({
+      roomId: roomId,
+      hooks: {
+        onNewMessage: message => {
+          this.setState((prevState) => ({ 
+            messages: [...prevState.messages, message]
+          }));
+        }
+      }
+    })
+    .then(room => {
+      console.log('ROOOM: ', room.id);
+      this.setState(() => ({ roomId: room.id }));
+      this.getRooms();
+    })
+    .catch(err => console.log('errpr on subscribing to room: ', err));
+  }
+
+  sendMessage = (text) => {
+    this.currentUser.sendMessage({
+      text,
+      roomId: this.state.roomId
+    });
   }
 
   render() {
+    console.log('this.state.messages :', this.state.messages);
     return (
       <div className="app">
-        <RoomList />
-        <MessageList />
-        <SendMessageForm />
+        <RoomList 
+          roomId={this.state.roomId}
+          rooms={[...this.state.joinableRooms, ...this.state.joinedRooms]}
+          subscribeToRoom={this.subscribeToRoom}  
+        />
+        <MessageList messages={this.state.messages}/>
+        <SendMessageForm sendMessage={this.sendMessage}/>
         <NewRoomForm />
       </div>
     );
